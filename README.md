@@ -2,6 +2,10 @@
 
 > A state-of-the-art, real-time IoT payment solution featuring a premium dashboard, persistent per-UID balance tracking, and multi-protocol communication.
 
+## 🌐 Live Dashboard
+
+**Access the Web Dashboard:** [http://157.173.101.159:9250](http://157.173.101.159:9250)
+
 ---
 
 ## 🏗 System Architecture
@@ -52,13 +56,13 @@ The firmware uses a `std::map<String, int>` to maintain independent balances for
 
 ## 📡 Communication Protocol (MQTT)
 
-**Team ID:** `1nt3rn4l_53rv3r_3rr0r` | **Host:** `157.173.101.159:1883`
+**Team ID:** `Nora_and_Anna` | **Host:** `157.173.101.159:1883`
 
 | Action             | Topic                                     | Payload                              | Description                         |
 | :----------------- | :---------------------------------------- | :----------------------------------- | :---------------------------------- |
-| **Status Event**   | `rfid/1nt3rn4l_53rv3r_3rr0r/card/status`  | `{"uid": "...", "balance": 0}`       | Published when a card is scanned.   |
-| **Top-up Command** | `rfid/1nt3rn4l_53rv3r_3rr0r/card/topup`   | `{"uid": "...", "amount": 100}`      | Sent by backend to trigger top-up.  |
-| **Balance Sync**   | `rfid/1nt3rn4l_53rv3r_3rr0r/card/balance` | `{"uid": "...", "new_balance": 100}` | Published by hardware after update. |
+| **Status Event**   | `rfid/Nora_and_Anna/card/status`  | `{"uid": "...", "balance": 0}`       | Published when a card is scanned.   |
+| **Top-up Command** | `rfid/Nora_and_Anna/card/topup`   | `{"uid": "...", "amount": 100}`      | Sent by backend to trigger top-up.  |
+| **Balance Sync**   | `rfid/Nora_and_Anna/card/balance` | `{"uid": "...", "new_balance": 100}` | Published by hardware after update. |
 
 ---
 
@@ -71,6 +75,7 @@ A high-fidelity **Tailwind CSS** dashboard with:
 - **Glassmorphism Design:** Dark theme with transparent backdrop blurs.
 - **Dynamic Connection:** Automatically detects hosting environment (Local vs VPS).
 - **Log Terminal:** Real-time stream of all system events.
+- **Build Process:** Uses Tailwind CLI to compile `src/input.css` to `public/output.css`.
 
 ### 2. Node.js Backend
 
@@ -108,27 +113,30 @@ Used by the dashboard or external tools to add funds to a card.
 
 1.  **Clone:** `git clone <repo-url>`
 2.  **Install:** `npm install`
-3.  **Start:** `node server.js`
-4.  **Access:** `http://localhost:5000`
+3.  **Build CSS:** `npm run dev:css` (in a separate terminal, keeps running)
+4.  **Start Server:** `node server.js`
+5.  **Access:** `http://localhost:9250`
 
 ### **VPS Deployment**
 
 1.  **Connect:** `ssh user271@157.173.101.159`
-2.  **Transfer:** Use `scp` to move `server.js`, `package.json`, and `public/`.
+2.  **Transfer:** Use `scp` to move `server.js`, `package.json`, `public/`, `src/`, and `tailwind.config.js`.
 3.  **Execute:**
     ```bash
     npm install
+    npm run dev:css &
     sudo npm install -g pm2
     pm2 start server.js --name "rfid-system"
     ```
-4.  **Access:** `http://157.173.101.159:5000`
+4.  **Access:** `http://157.173.101.159:9250`
 
 ---
 
 ## ❓ Troubleshooting
 
-- **Connection Lost?** Check the VPS firewall: `sudo ufw allow 5000`.
+- **Connection Lost?** Check the VPS firewall: `sudo ufw allow 9250`.
 - **Card not reading?** Verify SPI wiring (specifically SDA on D8 and RST on D3).
 - **Balance incorrect?** Ensure `RFID_MQTT.ino` was flashed with the latest version using `std::map`.
+- **Styles not loading?** Make sure `npm run dev:css` is running to compile Tailwind CSS.
 
 ---
