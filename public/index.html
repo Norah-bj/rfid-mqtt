@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RFID Top-Up System</title>
+    <link href="./output.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body { font-family: 'Inter', sans-serif; }
+      /* Custom scrollbar for log - using new color scheme */
+      #log::-webkit-scrollbar { width: 8px; }
+      #log::-webkit-scrollbar-track { background: #01010d; }
+      #log::-webkit-scrollbar-thumb { background: #636b2f; border-radius: 4px; }
+      #log::-webkit-scrollbar-thumb:hover { background: #d1ffdb; }
+      
+      @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-5px); }
+      }
+      .animate-float { animation: float 6s ease-in-out infinite; }
+    </style>
+  </head>
+  <!-- Nora and Anna -->
+  <body class="h-full bg-[#01010d] text-[#d1ffdb] overflow-hidden selection:bg-[#636b2f] selection:text-white">
+    
+    <div class="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">
+      
+      <div class="text-center mb-8 animate-float">
+        <div class="inline-flex items-center gap-2 px-3 py-1 border border-[#636b2f] bg-[#0a0a12] mb-4">
+          <span class="relative flex h-2 w-2">
+            <span id="status-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#636b2f] opacity-75"></span>
+            <span id="status-dot" class="relative inline-flex rounded-full h-2 w-2 bg-[#d1ffdb]"></span>
+          </span>
+          <span id="status-text" class="text-xs font-medium tracking-wide text-[#d1ffdb] uppercase">Connecting...</span>
+        </div>
+        
+        <h1 class="text-5xl font-bold tracking-tight text-white">RFID System</h1>
+        <p class="mt-2 text-[#636b2f] text-sm font-light tracking-wide">Secure IoT Payment Dashboard</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-5xl">
+        
+        <div class="bg-[#0a0a12] border border-[#636b2f] p-6 flex flex-col justify-center">
+          <h2 class="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
+            Manual Top-Up
+          </h2>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs text-[#636b2f] uppercase tracking-wider mb-1">Card UID</label>
+              <input id="uid" type="text" placeholder="Scanning..." 
+                class="w-full bg-[#181825] border border-[#636b2f]/50 px-3 py-2 text-white focus:outline-none focus:border-[#d1ffdb] font-mono"
+              />
+            </div>
+            <div>
+              <label class="block text-xs text-[#636b2f] uppercase tracking-wider mb-1">Amount ($)</label>
+              <input id="amount" type="number" placeholder="0.00" 
+                class="w-full bg-[#181825] border border-[#636b2f]/50 px-3 py-2 text-white focus:outline-none focus:border-[#d1ffdb] font-mono"
+              />
+            </div>
+            <button onclick="sendTopup()" 
+              class="w-full mt-2 bg-[#636b2f] hover:bg-[#d1ffdb] hover:text-[#01010d] text-white font-semibold py-2 transition-all">
+              Process Transaction
+            </button>
+          </div>
+        </div>
+
+        <div class="h-[300px] lg:h-auto bg-[#0a0a12] border border-[#636b2f] flex flex-col overflow-hidden">
+          <div class="px-4 py-2 border-b border-[#636b2f] bg-[#01010d] flex items-center justify-between font-mono text-xs">
+            <span class="text-[#d1ffdb]">log.sh</span>
+            <span class="text-[#636b2f]">STDOUT</span>
+          </div>
+          <div id="log" class="flex-1 p-3 overflow-y-auto font-mono text-xs space-y-1 text-[#d1ffdb]">
+            <div class="text-[#636b2f] italic">Waiting for connection...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /* --- DYNAMIC CONNECTION --- */
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = window.location.hostname;
+      const wsPort = window.location.port; // Uses the same port as the page
+      const wsUrl = `${wsProtocol}//${wsHost}:${wsPort}`;
+      
+      console.log(`Connecting to WebSocket at ${wsUrl}`);
+      const ws = new WebSocket(wsUrl);
+      const log = document.getElementById("log");
+      
+      const statusText = document.getElementById("status-text");
+      const statusPing = document.getElementById("status-ping");
+      const statusDot = document.getElementById("status-dot");
+
+      function setStatus(state) {
+        if (state === 'connected') {
+          statusText.innerText = "SYSTEM ONLINE";
+          statusPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75";
+          statusDot.className = "relative inline-flex rounded-full h-2 w-2 bg-green-500";
+        } else {
+          statusText.innerText = "DISCONNECTED";
+          statusPing.className = "hidden";
+          statusDot.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
+        }
+      }
+
+      ws.onopen = () => {
+        setStatus('connected');
+        appendLog("[SYSTEM] Connection established.", "success");
+      };
+
+      ws.onclose = () => {
+        setStatus('disconnected');
+        appendLog("[SYSTEM] Connection lost.", "error");
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const topic = data.topic;
+          const message = JSON.parse(data.message);
+
+          if (topic.includes("status") || topic.includes("balance")) {
+            const uidInput = document.getElementById("uid");
+            if (!uidInput.value) uidInput.value = message.uid;
+            appendLog(`[SCAN] UID: ${message.uid} | BAL: $${message.balance || message.new_balance}`, "info");
+          }
+        } catch (e) {
+          console.error("Parse error", e);
+        }
+      };
+
+      function sendTopup() {
+        const uid = document.getElementById("uid").value.trim();
+        const amount = parseInt(document.getElementById("amount").value);
+
+        if (!uid || isNaN(amount)) {
+          appendLog("[WARN] Missing UID or Amount.", "warning");
+          return;
+        }
+
+        appendLog(`[ACTION] Sending $${amount} to ${uid}...`);
+
+        appendLog(`[ACTION] Sending $${amount} to ${uid}...`);
+
+        // Use relative URL for API call
+        fetch(`/topup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uid, amount }),
+        })
+        .then((res) => res.json())
+        .then((data) => {
+          if(data.error) appendLog(`[FAIL] ${data.error}`, "error");
+          else appendLog(`[SUCCESS] $${amount} sent to ${uid}`, "success");
+        })
+        .catch((err) => appendLog(`[FAIL] ${err.message}`, "error"));
+      }
+
+      function appendLog(msg, type = "neutral") {
+        const time = new Date().toLocaleTimeString([], { hour12: false });
+        let color = "#d1ffdb"; // Default
+        
+        if (type === "success") color = "#27C93F";
+        else if (type === "error") color = "#FF5F56";
+        else if (type === "warning") color = "#FFBD2E";
+        else if (type === "info") color = "#636b2f";
+
+        const logItem = document.createElement('div');
+        logItem.style.color = color;
+        logItem.innerHTML = `<span class="text-gray-500">${time}</span> ${msg}`;
+        
+        log.appendChild(logItem);
+        // Auto scroll to bottom
+        log.scrollTop = log.scrollHeight;
+      }
+    </script>
+  </body>
+</html>
